@@ -69,7 +69,7 @@ jobs:
         with:
           name: python-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: .
-        # Ensures unique artifact name by combining run_id, OS, and Python version.
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
       - name: Upload helm artifacts
         if: github.ref_name == 'main'
@@ -77,7 +77,7 @@ jobs:
         with:
           name: helm-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/helm-charts
-        # Ensures unique artifact name for Helm artifacts.
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
       - name: Upload kind cluster artifact
         if: github.ref_name == 'main'
@@ -85,7 +85,7 @@ jobs:
         with:
           name: kind-cluster-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/cluster.yml
-        # Ensures unique artifact name for kind cluster artifact.
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
   docker-ci:
     name: Build and Push Image
@@ -99,7 +99,8 @@ jobs:
       with:
         name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
         path: .
-      # Modified to download the uniquely named python artifacts for `ubuntu-latest` and `3.8`.
+      # Updated: Modified to download the uniquely named python artifacts for `ubuntu-latest` and `3.8`.
+      # If this needs to be more dynamic, consider parameterizing the artifact name based on the specific combination of OS and Python version.
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -120,10 +121,11 @@ helm-ci:
   if: github.ref_name == 'main'
   name: Helm CI
   steps:
+
   - name: Set Up Helm
     uses: azure/setup-helm@v4.2.0
 
-  - name: Lint Helm
+  - name: Lint helm
     run: helm lint ./todoapp/
 
   - name: Template Helm
@@ -135,45 +137,25 @@ helm-ci:
   - name: Upload Helm Artifact
     uses: actions/upload-artifact@v4
     with:
-      name: helm-package-${{ github.sha }}  # Use SHA for uniqueness
+      name: helm-package  # Simplified name for consistency
       path: ./*.tgz
 
-deploy-helm-dev:
-  name: Deploy Helm to Development
-  runs-on: ubuntu-latest
-  needs: [helm-ci, docker-ci]
-  secrets: inherit
-
-  steps:
-  - name: Download Helm Package Artifact
-    uses: actions/download-artifact@v4
-    with:
-      name: helm-package-${{ github.sha }}  # Ensure it matches the uploaded name
-      path: .
-
-  - name: Deploy Helm to Development
+  deploy-helm-dev:
+    name: Deploy helm to Development
     uses: ./.github/workflows/reusable-deployment.yml
+    needs: [helm-ci, docker-ci]
+    secrets: inherit
     with:
       environment: development
       version: ${{ github.sha }}
       helm-values-path: ${{ github.event.inputs.helm-values-path }}
       helm-release-name: ${{ github.event.inputs.helm-release-name }}
 
-deploy-helm-stg:
-  name: Deploy Helm to Staging
-  runs-on: ubuntu-latest
-  needs: [deploy-helm-dev]
-  secrets: inherit
-
-  steps:
-  - name: Download Helm Package Artifact
-    uses: actions/download-artifact@v4
-    with:
-      name: helm-package-${{ github.sha }}  # Ensure it matches the uploaded name
-      path: .
-
-  - name: Deploy Helm to Staging
+  deploy-helm-stg:
+    name: Deploy helm to Staging
     uses: ./.github/workflows/reusable-deployment.yml
+    needs: [deploy-helm-dev]
+    secrets: inherit
     with:
       environment: staging
       version: ${{ github.sha }}
