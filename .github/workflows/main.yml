@@ -138,7 +138,7 @@ jobs:
     - name: Upload Helm Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: helm-package-${{ github.run_id }}
+        name: helm-package
         path: ./*.tgz
       # Updated: Added `github.run_id` to ensure a unique artifact name for Helm package artifacts.
 
