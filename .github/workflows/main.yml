@@ -46,24 +46,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install coverage flake8
           pip install -r requirements.txt
-
       - name: Run tests
         run: |
           python manage.py test
-
       - name: Generate Report
         run: |
           coverage run --source='.' manage.py test
           coverage report
-
       - name: Linting
         run: |
           flake8 . --show-source --statistics --exit-zero
-
       - name: Check Complexity
         run: |
           flake8 . --exit-zero --max-complexity=6
-
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -94,26 +89,26 @@ jobs:
     needs: python-ci
     steps:
 
-      - uses: actions/download-artifact@v4
-        name: Download python artifacts
-        with:
-          name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
-          path: .
-        # Updated: Modified to download the uniquely named python artifacts for `ubuntu-latest` and `3.8`.
-        # If this needs to be more dynamic, consider parameterizing the artifact name based on the specific combination of OS and Python version.
+    - uses: actions/download-artifact@v4
+      name: Download python artifacts
+      with:
+        name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
+        path: .
+      # Updated: Modified to download the uniquely named python artifacts for `ubuntu-latest` and `3.8`. 
+      # If this needs to be more dynamic, consider parameterizing the artifact name based on the specific combination of OS and Python version.
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: ./src
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        push: true
+        context: ./src
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
@@ -121,23 +116,31 @@ jobs:
     if: github.ref_name == 'main'
     name: Helm CI
     steps:
-      - name: Set Up Helm
-        uses: azure/setup-helm@v4.2.0
 
-      - name: Lint helm
-        run: helm lint ./todoapp/
+    - uses: actions/download-artifact@v4
+      with:
+        name: helm-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
+        path: .
+      # Updated: Modified to download the uniquely named Helm artifacts for `ubuntu-latest` and `3.8`.
 
-      - name: Template Helm
-        run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
+    - name: Set Up Helm
+      uses: azure/setup-helm@v4.2.0
 
-      - name: Package Helm
-        run: helm package ./todoapp
+    - name: Lint helm
+      run: helm lint ./todoapp/
 
-      - name: Upload Helm Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: helm-package  # Simplified name for consistency
-          path: ./*.tgz
+    - name: Template Helm
+      run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
+
+    - name: Package Helm
+      run: helm package ./todoapp
+
+    - name: Upload Helm Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: helm-package-${{ github.run_id }}
+        path: ./*.tgz
+      # Updated: Added `github.run_id` to ensure a unique artifact name for Helm package artifacts.
 
   deploy-helm-dev:
     name: Deploy helm to Development
@@ -159,4 +162,4 @@ jobs:
       environment: staging
       version: ${{ github.sha }}
       helm-values-path: ./todoapp/values/stg.yaml
-      helm-release-name: ${{ github.event.inputs.helm-release-name }}
+      helm-release-name: todoapp-staging
