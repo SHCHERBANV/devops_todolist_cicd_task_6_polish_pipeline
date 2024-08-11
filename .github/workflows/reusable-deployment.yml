@@ -17,6 +17,7 @@ on:
       helm-release-name:
         default: todoapp
         type: string
+
 jobs:
     deploy-helm:
       name: ${{ inputs.environment }}
@@ -29,14 +30,10 @@ jobs:
           name: helm-package
           path: .
 
+      # Remove unnecessary downloads if not required or ensure the artifact exists
       - uses: actions/download-artifact@v4
         with:
           name: helm-artifacts
-          path: .
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: kind-cluster
           path: .
 
       - name: Set Up Helm
@@ -49,6 +46,10 @@ jobs:
         uses: helm/kind-action@v1
         with:
           config: ./cluster.yml
+
+      # Debugging step to confirm artifact download
+      - name: List Files
+        run: ls -alh
 
       - name: Dry Run Helm
         run: |
@@ -77,4 +78,3 @@ jobs:
           --set todoapp.secrets.DB_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
           --set todoapp.secrets.DB_HOST="${{ secrets.APP_DB_HOST }}" \
           --set todoapp.image.tag=${{ github.sha }}
-
