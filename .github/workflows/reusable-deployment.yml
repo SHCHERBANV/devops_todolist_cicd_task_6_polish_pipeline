@@ -1,5 +1,6 @@
 name: helm-upgrade
-run-name: ${{ github.actor }} - ${{ github.ref_name }} - ${{ github.sha }}
+
+run-name: ${{ github.actor }} - ${{ github.ref_name }}
 
 on:
   workflow_call:
@@ -17,27 +18,26 @@ on:
       helm-release-name:
         default: todoapp
         type: string
-
 jobs:
-    deploy-helm:
-      name: ${{ inputs.environment }}
-      runs-on: ubuntu-latest
-      environment: ${{ inputs.environment }}
+  deploy-helm:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
-      steps:
+    steps:
       - uses: actions/download-artifact@v4
         with:
-          name: helm-package
+          name: helm-package-${{ github.run_id }}
           path: .
 
       - uses: actions/download-artifact@v4
         with:
-          name: helm-artifacts
+          name: helm-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
 
       - uses: actions/download-artifact@v4
         with:
-          name: kind-cluster
+          name: kind-cluster-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
 
       - name: Set Up Helm
@@ -58,23 +58,23 @@ jobs:
           --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
           --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
           --set mysql.secrets.MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
-          --set todoapp.secrets.SECRET_KEY="${{ secrets.APP_SECRET_KEY }}" \
+          --set todoapp.secrets.SECRET_KEY="${{ secrets.SECRET_KEY }}" \
           --set todoapp.secrets.DB_NAME="${{ secrets.APP_DB_NAME }}" \
           --set todoapp.secrets.DB_USER="${{ secrets.DB_USER }}" \
           --set todoapp.secrets.DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
           --set todoapp.secrets.DB_HOST="${{ secrets.APP_DB_HOST }}" \
-          --set todoapp.image.tag=${{ github.sha }}
+          --set todoapp.image.tag=${{ inputs.version }}
 
-      - name: Deploy helm to Development
+      - name: Deploy helm to ${{ inputs.environment }}
         run: |
           helm upgrade --install --wait --timeout 180s --debug ${{ inputs.helm-release-name }} ./todoapp-*.tgz \
           -f ${{ inputs.helm-values-path }} \
           --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
           --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
           --set mysql.secrets.MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
-          --set todoapp.secrets.SECRET_KEY="${{ secrets.APP_SECRET_KEY }}" \
+          --set todoapp.secrets.SECRET_KEY="${{ secrets.SECRET_KEY }}" \
           --set todoapp.secrets.DB_NAME="${{ secrets.APP_DB_NAME }}" \
           --set todoapp.secrets.DB_USER="${{ secrets.DB_USER }}" \
           --set todoapp.secrets.DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
           --set todoapp.secrets.DB_HOST="${{ secrets.APP_DB_HOST }}" \
-          --set todoapp.image.tag=${{ github.sha }}
+          --set todoapp.image.tag=${{ inputs.version }}
