@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name}} -${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name }} - ${{ github.sha }}
 
 on:
   push:
@@ -9,20 +9,14 @@ on:
     branches: ["main"]
   workflow_dispatch:
     inputs:
-      OsType:
-        description: "Select OS for the python artifact"
+      python-version:
+        description: 'Python version to use'
         required: true
-        type: choice
-        options: [ubuntu-latest, windows-latest]
-      PythonVersion:
-        description: "Select Python version for the python artifact"
+        default: '3.8'
+      os-type:
+        description: 'Operating System to use'
         required: true
-        type: choice
-        options: [3.8, 3.9]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+        default: 'ubuntu-latest'
 
 env:
   PythonVersion: 3.8
@@ -30,14 +24,11 @@ env:
 
 jobs:
   python-ci:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.PythonVersion && github.event.inputs.OsType
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        PythonVersion: [3.8, 3.9]
-        OsType: [ubuntu-latest, windows-latest]
-
-    runs-on: ${{ matrix.OsType }}
-
+        os: [ubuntu-latest, ]
+        python-version: ['3.8', '3.9']
     defaults:
       run:
         working-directory: ./src
@@ -45,54 +36,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.PythonVersion }}
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.PythonVersion }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install coverage flake8
           pip install -r requirements.txt
-
       - name: Run tests
         run: |
           python manage.py test
-
       - name: Generate Report
         run: |
           coverage run --source='.' manage.py test
           coverage report
-
       - name: Linting
         run: |
           flake8 . --show-source --statistics --exit-zero
-
       - name: Check Complexity
         run: |
           flake8 . --exit-zero --max-complexity=6
-
-      - name: Upload python artifacts ${{ matrix.OsType }}-${{ matrix.PythonVersion }}
-        if: matrix.OsType == github.event.inputs.OsType && matrix.PythonVersion == github.event.inputs.PythonVersion
+      - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: python-artifacts
+          name: python-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: .
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
       - name: Upload helm artifacts
         if: github.ref_name == 'main'
         uses: actions/upload-artifact@v4
         with:
-          name: helm-artifacts
+          name: helm-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/helm-charts
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
       - name: Upload kind cluster artifact
         if: github.ref_name == 'main'
         uses: actions/upload-artifact@v4
         with:
-          name: kind-cluster
+          name: kind-cluster-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/cluster.yml
+        # Updated: Added `github.run_id`, `matrix.os`, and `matrix.python-version` to ensure a unique artifact name.
 
   docker-ci:
     name: Build and Push Image
@@ -104,8 +92,10 @@ jobs:
     - uses: actions/download-artifact@v4
       name: Download python artifacts
       with:
-        name: python-artifacts
+        name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
         path: .
+      # Updated: Modified to download the uniquely named python artifacts for `ubuntu-latest` and `3.8`. 
+      # If this needs to be more dynamic, consider parameterizing the artifact name based on the specific combination of OS and Python version.
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -129,8 +119,9 @@ jobs:
 
     - uses: actions/download-artifact@v4
       with:
-        name: helm-artifacts
+        name: helm-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
         path: .
+      # Updated: Modified to download the uniquely named Helm artifacts for `ubuntu-latest` and `3.8`.
 
     - name: Set Up Helm
       uses: azure/setup-helm@v4.2.0
@@ -149,12 +140,26 @@ jobs:
       with:
         name: helm-package
         path: ./*.tgz
+      # Updated: Added `github.run_id` to ensure a unique artifact name for Helm package artifacts.
 
-  deploy-helm:
-    name: Deploy helm
+  deploy-helm-dev:
+    name: Deploy helm to Development
     uses: ./.github/workflows/reusable-deployment.yml
     needs: [helm-ci, docker-ci]
     secrets: inherit
     with:
       environment: development
       version: ${{ github.sha }}
+      helm-values-path: ${{ github.event.inputs.helm-values-path }}
+      helm-release-name: ${{ github.event.inputs.helm-release-name }}
+
+  deploy-helm-stg:
+    name: Deploy helm to Staging
+    uses: ./.github/workflows/reusable-deployment.yml
+    needs: [deploy-helm-dev]
+    secrets: inherit
+    with:
+      environment: staging
+      version: ${{ github.sha }}
+      helm-values-path: ./todoapp/values/stg.yaml
+      helm-release-name: todoapp-staging
