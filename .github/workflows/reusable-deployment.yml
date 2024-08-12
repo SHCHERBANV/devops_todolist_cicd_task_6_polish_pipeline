@@ -13,7 +13,7 @@ on:
         type: string
       helm-values-path:
         type: string
-        default: './todoapp/values.yaml'
+        default: './helm-charts/todoapp/values.yaml'
       helm-release-name:
         default: todoapp
         type: string
@@ -29,9 +29,9 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Download Helm Package
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v2
       with:
-        name: helm-package-${{ github.run_id }} # Оновлено: Використання нової назви артефакту
+        name: helm-package-${{ github.run_id }} # Updated artifact name usage
         path: .
 
     # Debugging step to confirm artifact download
@@ -59,12 +59,12 @@ jobs:
 
     - name: Dry Run Helm
       run: |
-        helm install --dry-run ${{ inputs.helm-release-name }} ./todoapp-*.tgz  \
+        helm install --dry-run ${{ inputs.helm-release-name }} ./helm-charts/todoapp/helm-package/todoapp-*.tgz  \
         -f ${{ inputs.helm-values-path }} \
         --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
         --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
         --set mysql.secrets.MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
-        --set todoapp.secrets.SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+        --set todoapp.secrets.SECRET_KEY="${{ secrets.APP_SECRET_KEY }}" \
         --set todoapp.secrets.DB_NAME="${{ secrets.APP_DB_NAME }}" \
         --set todoapp.secrets.DB_USER="${{ secrets.MYSQL_USER }}" \
         --set todoapp.secrets.DB_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
@@ -73,12 +73,12 @@ jobs:
 
     - name: Deploy helm to Development
       run: |
-        helm upgrade --install --wait --timeout 180s --debug ${{ inputs.helm-release-name }} ./todoapp-*.tgz \
+        helm upgrade --install --wait --timeout 180s --debug ${{ inputs.helm-release-name }} ./helm-charts/todoapp/helm-package/todoapp-*.tgz \
         -f ${{ inputs.helm-values-path }} \
         --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
         --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
         --set mysql.secrets.MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
-        --set todoapp.secrets.SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+        --set todoapp.secrets.SECRET_KEY="${{ secrets.APP_SECRET_KEY }}" \
         --set todoapp.secrets.DB_NAME="${{ secrets.APP_DB_NAME }}" \
         --set todoapp.secrets.DB_USER="${{ secrets.MYSQL_USER }}" \
         --set todoapp.secrets.DB_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
