@@ -57,26 +57,6 @@ jobs:
       with:
         config: ./cluster.yml
 
-    # Set up environment variables for secrets
-    - name: Set Environment Variables for Secrets
-      run: |
-        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> $GITHUB_ENV
-        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> $GITHUB_ENV
-        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> $GITHUB_ENV
-        echo "APP_DB_NAME=${{ secrets.APP_DB_NAME }}" >> $GITHUB_ENV
-        echo "APP_DB_HOST=${{ secrets.APP_DB_HOST }}" >> $GITHUB_ENV
-
-    # Debugging step to ensure environment variables are set correctly
-    - name: Debug Environment Variables
-      run: |
-        echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD"
-        echo "MYSQL_USER=$MYSQL_USER"
-        echo "MYSQL_PASSWORD=$MYSQL_PASSWORD"
-        echo "SECRET_KEY=$SECRET_KEY"
-        echo "APP_DB_NAME=$APP_DB_NAME"
-        echo "APP_DB_HOST=$APP_DB_HOST"
-
     - name: Dry Run Helm
       run: |
         helm install --dry-run ${{ inputs.helm-release-name }} ./todoapp-*.tgz  \
