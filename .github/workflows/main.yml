@@ -27,15 +27,17 @@ on:
         default: './todoapp/values/dev.yaml'
 
 env:
-  PythonVersion: ${{ inputs.python-version }}
+  PythonVersion: ${{ github.event.inputs.python-version }} # Використання inputs для Python версії
   DockerImageName: todoapp
+  HelmReleaseName: ${{ github.event.inputs.helm-release-name || 'todoapp-dev' }} # Додав резервне значення для HelmReleaseName
+  HelmValuesPath: ${{ github.event.inputs.helm-values-path || './todoapp/values/dev.yaml' }} # Додав резервне значення для HelmValuesPath
 
 jobs:
   python-ci:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest , windows-latest]
+        os: [ubuntu-latest, windows-latest]
         python-version: ['3.8', '3.9']
     defaults:
       run:
@@ -77,7 +79,6 @@ jobs:
         with:
           name: python-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: .
-        # Забезпечення унікальної назви артефакту.
 
       - name: Upload helm artifacts
         if: github.ref_name == 'main'
@@ -85,7 +86,6 @@ jobs:
         with:
           name: helm-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/helm-charts
-        # Забезпечення унікальної назви артефакту.
 
       - name: Upload kind cluster artifact
         if: github.ref_name == 'main'
@@ -93,7 +93,6 @@ jobs:
         with:
           name: kind-cluster-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: ${{ github.workspace }}/cluster.yml
-        # Забезпечення унікальної назви артефакту.
 
   docker-ci:
     name: Build and Push Image
@@ -106,7 +105,6 @@ jobs:
         with:
           name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
-        # Забезпечення завантаження унікальних python артефактів.
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -131,7 +129,6 @@ jobs:
         with:
           name: helm-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
-        # Забезпечення завантаження унікальних Helm артефактів.
 
       - name: Set Up Helm
         uses: azure/setup-helm@v4.2.0
@@ -159,8 +156,8 @@ jobs:
     with:
       environment: development
       version: ${{ github.sha }}
-      helm-values-path: ${{ github.event.inputs.helm-values-path }}
-      helm-release-name: ${{ github.event.inputs.helm-release-name }}
+      helm-values-path: ${{ env.HelmValuesPath }} # Замінив використання inputs на env для Helm Values Path
+      helm-release-name: ${{ env.HelmReleaseName }} # Замінив використання inputs на env для Helm Release Name
 
   deploy-helm-stg:
     name: Deploy helm to Staging
