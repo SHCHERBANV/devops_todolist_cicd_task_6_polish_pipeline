@@ -9,26 +9,37 @@ on:
     branches: ["main"]
   workflow_dispatch:
     inputs:
-      os-type:
-        description: 'Operating System to use'
-        required: true
-        default: 'ubuntu-latest'
       python-version:
         description: 'Python version to use'
         required: true
         default: '3.8'
+      os-type:
+        description: 'Operating System to use'
+        required: true
+        default: 'ubuntu-latest'
+      helm-release-name:
+        description: 'Helm release name'
+        required: true
+        default: 'todoapp-dev'
+      helm-values-path:
+        description: 'Path to Helm values file'
+        required: true
+        default: './todoapp/values/dev.yaml'
 
 env:
-  PythonVersion: 3.8
+  PythonVersion: ${{ inputs.python-version }}
   DockerImageName: todoapp
 
 jobs:
   python-ci:
-    runs-on: ${{ matrix.os-type }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os-type: [ubuntu-latest, windows-latest]
-        python-version: [3.8, 3.9]
+        os: [ubuntu-latest , windows-latest]
+        python-version: ['3.8', '3.9']
+    defaults:
+      run:
+        working-directory: ./src
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,10 +47,6 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          environment: ${{ matrix.environment }}
-          version: ${{ github.sha }}
-          helm-values-path: ${{ matrix.helm-values-path }}
-          helm-release-name: ${{ matrix.helm-release-name }}
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
@@ -47,29 +54,41 @@ jobs:
           python -m pip install --upgrade pip
           pip install coverage flake8
           pip install -r requirements.txt
-
       - name: Run tests
         run: |
           python manage.py test
-
       - name: Generate Report
         run: |
           coverage run --source='.' manage.py test
           coverage report
-
       - name: Linting
         run: |
           flake8 . --show-source --statistics --exit-zero
-
       - name: Check Complexity
         run: |
           flake8 . --exit-zero --max-complexity=6
-
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: python-artifacts
+          name: python-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
           path: .
+        # Забезпечення унікальної назви артефакту.
+
+      - name: Upload helm artifacts
+        if: github.ref_name == 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-artifacts-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ${{ github.workspace }}/helm-charts
+        # Забезпечення унікальної назви артефакту.
+
+      - name: Upload kind cluster artifact
+        if: github.ref_name == 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kind-cluster-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ${{ github.workspace }}/cluster.yml
+        # Забезпечення унікальної назви артефакту.
 
   docker-ci:
     name: Build and Push Image
@@ -80,10 +99,10 @@ jobs:
       - uses: actions/download-artifact@v4
         name: Download python artifacts
         with:
-          name: python-artifacts
+          name: python-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        # Забезпечення завантаження унікальних python артефактів.
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -105,8 +124,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: helm-artifacts
+          name: helm-artifacts-${{ github.run_id }}-ubuntu-latest-3.8
           path: .
+        # Забезпечення завантаження унікальних Helm артефактів.
 
       - name: Set Up Helm
         uses: azure/setup-helm@v4.2.0
@@ -123,29 +143,27 @@ jobs:
       - name: Upload Helm Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: helm-package
+          name: helm-package-${{ github.run_id }}
           path: ./*.tgz
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-  deploy-helm:
-    name: Deploy Helm
-    runs-on: ubuntu-latest
+
+  deploy-helm-dev:
+    name: Deploy helm to Development
+    uses: ./.github/workflows/reusable-deployment.yml
     needs: [helm-ci, docker-ci]
     secrets: inherit
-    strategy:
-      matrix:
-        environment: 
-          - development
-          - staging
-        helm-values-path: 
-          - ${{ github.event.inputs.helm-values-path }}
-          - ./todoapp/values/stg.yaml
-        helm-release-name: 
-          - todoapp-development
-          - todoapp-staging
     with:
-      environment: ${{ matrix.environment }}
+      environment: development
       version: ${{ github.sha }}
-      helm-values-path: ${{ matrix.helm-values-path }}
-      helm-release-name: ${{ matrix.helm-release-name }}
+      helm-values-path: ${{ github.event.inputs.helm-values-path }}
+      helm-release-name: ${{ github.event.inputs.helm-release-name }}
+
+  deploy-helm-stg:
+    name: Deploy helm to Staging
+    uses: ./.github/workflows/reusable-deployment.yml
+    needs: [deploy-helm-dev]
+    secrets: inherit
+    with:
+      environment: staging
+      version: ${{ github.sha }}
+      helm-values-path: ./todoapp/values/stg.yaml
+      helm-release-name: todoapp-staging

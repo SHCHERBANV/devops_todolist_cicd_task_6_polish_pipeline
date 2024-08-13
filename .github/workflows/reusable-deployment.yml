@@ -18,7 +18,6 @@ on:
       helm-release-name:
         default: todoapp
         type: string
-
 jobs:
   deploy-helm:
     name: Deploy to ${{ inputs.environment }}
@@ -71,7 +70,7 @@ jobs:
 
       - name: Dry Run Helm
         run: |
-          helm install --dry-run ${{ inputs.helm-release-name }} ./*.tgz  \
+          helm install --dry-run ${{ inputs.helm-release-name }} ./todoapp-*.tgz  \
           -f ${{ inputs.helm-values-path }} \
           --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
           --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
@@ -87,7 +86,7 @@ jobs:
 
       - name: Deploy Helm to ${{ inputs.environment }}
         run: |
-          helm upgrade --install --wait --timeout 180s --debug ${{ inputs.helm-release-name }} ./*.tgz \
+          helm upgrade --install --wait --timeout 180s --debug ${{ inputs.helm-release-name }} ./todoapp-*.tgz \
           -f ${{ inputs.helm-values-path }} \
           --set mysql.secrets.MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
           --set mysql.secrets.MYSQL_USER="${{ secrets.MYSQL_USER }}" \
